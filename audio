@@ -2,13 +2,13 @@
 
 # Script to launch audio servers for music-making.
 
-pakill () {
+pwkill () {
     systemctl --user stop pipewire-pulse.socket pipewire-pulse.service \
                           pipewire.socket pipewire.service \
                           pulseaudio.socket pulseaudio.service
 }
 
-pastart () {
+pwstart () {
     systemctl --user start pulseaudio.socket pulseaudio.service \
                            pipewire-pulse.socket pipewire-pulse.service \
                            pipewire.socket pipewire.service
@@ -55,11 +55,9 @@ case $1 in
       
     else
 
-      echo "Stopping pulseaudio..."
+      echo "Stopping pipewire and pulseaudio..."
 
-      # Kill pulseaudio.  We could use pasuspender, but this is
-      # more effective.  It also lets us bring down pipewire.
-      pakill
+      pwkill
 
       echo "Starting JACK..."
 
@@ -115,8 +113,6 @@ case $1 in
     then
       echo "JACK started successfully."
     else
-      # This is what usually happens, but jackd does come up.
-      # Why doesn't pgrep see it?
       echo "JACK did NOT start successfully."
     fi
     if pgrep -l fluidsynth
@@ -152,27 +148,26 @@ case $1 in
 
     pgrep -l "fluidsynth|jackd$"
 
-    echo "Starting pulseaudio..."
+    echo "Starting pipewire/pulseaudio..."
 
-    # Bring back PulseAudio.
-    pastart
-
-    ;;
-
-  pakill )
-
-    pakill
+    pwstart
 
     ;;
 
-  pastart )
+  pwkill )
 
-    pastart
+    pwkill
+
+    ;;
+
+  pwstart )
+
+    pwstart
 
     ;;
 
   * )
-    echo "Please specify start, stop, status, pakill, or pastart."
+    echo "Please specify start, stop, status, pwkill, or pwstart."
     ;;
 esac
 
