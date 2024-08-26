@@ -76,10 +76,13 @@ case $1 in
       readonly alsadevice="hw:$devicenum"
 
       # Start JACK
-      # As of Ubuntu 24.04, a period of 256 is needed to avoid crackling
-      # audio.
-      # As of Ubuntu 12.10, a period of 128 is needed for good fluidsynth
-      # timing.  (jackd 1.9.9, fluidsynth 1.1.5)
+      # Be sure to reduce the period to the smallest that works for
+      # your computer.  If it is too small you will get crackling
+      # noises.
+      # Older versions of JACK worked for me at --period 128.  Newer
+      # JACK requires --period 256.  Appears to still be 5.8ms latency
+      # according to JACK's output.  If you are running older JACK
+      # you might be able to reduce this to 128.
       jackd -d alsa --device $alsadevice --rate 44100 --period 256 \
             &>/tmp/jackd.out &
 
