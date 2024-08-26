@@ -1,0 +1,178 @@
+#!/bin/bash
+
+# Script to launch audio servers for music-making.
+
+pakill () {
+    systemctl --user stop pipewire-pulse.socket pipewire-pulse.service \
+                          pipewire.socket pipewire.service \
+                          pulseaudio.socket pulseaudio.service
+}
+
+pastart () {
+    systemctl --user start pulseaudio.socket pulseaudio.service \
+                           pipewire-pulse.socket pipewire-pulse.service \
+                           pipewire.socket pipewire.service
+}
+
+case $1 in
+
+  status )
+    if pgrep -l pulseaudio >/dev/null
+    then
+      echo "pulseaudio RUNNING"
+    else
+      echo "pulseaudio down"
+    fi
+
+    if pgrep -l pipewire >/dev/null
+    then
+      echo "pipewire . RUNNING"
+    else
+      echo "pipewire . down"
+    fi
+
+    if pgrep -l "jackd$" >/dev/null
+    then
+      echo "JACK . . . RUNNING"
+    else
+      echo "JACK . . . down"
+    fi
+
+    if pgrep -l fluidsynth >/dev/null
+    then
+      echo "fluidsynth RUNNING"
+    else
+      echo "fluidsynth down"
+    fi
+
+    ;;
+  
+  start )
+    if pgrep -l "jackd$" >/dev/null
+    then
+    
+      echo "JACK appears to already be running.  Not starting."
+      
+    else
+
+      echo "Stopping pulseaudio..."
+
+      # Kill pulseaudio.  We could use pasuspender, but this is
+      # more effective.  It also lets us bring down pipewire.
+      pakill
+
+      echo "Starting JACK..."
+
+      # Find my TASCAM US-2x2HR device number.
+      devicenum="`grep "USB-Audio - US-2x2HR" /proc/asound/cards | \
+                  cut -f 2 -d " "`"
+      # Not found?  Go with 0 which is usually the mobo soundcard.
+      if [[ "$devicenum" != "" ]]
+      then
+        echo "TASCAM US-2x2HR found at hw:$devicenum."
+      else
+        echo "TASCAM US-2x2HR not found.  Going with hw:0."
+        devicenum="0"
+      fi
+
+      readonly alsadevice="hw:$devicenum"
+
+      # Start JACK
+      # As of Ubuntu 24.04, a period of 256 is needed to avoid crackling
+      # audio.
+      # As of Ubuntu 12.10, a period of 128 is needed for good fluidsynth
+      # timing.  (jackd 1.9.9, fluidsynth 1.1.5)
+      jackd -d alsa --device $alsadevice --rate 44100 --period 256 \
+            &>/tmp/jackd.out &
+
+      # Give it some time to come up.
+      sleep 2
+
+    fi
+
+    if pgrep -l fluidsynth >/dev/null
+    then
+    
+      echo "fluidsynth appears to already be running.  Not starting."
+      
+    else
+
+      echo "Starting fluidsynth..."
+
+      # Start fluidsynth
+      fluidsynth --server --no-shell -p "fluidsynth 1" --audio-driver=jack \
+          --connect-jack-outputs --reverb=0 --chorus=0 --gain=0.7 \
+          -o midi.autoconnect=false \
+          /usr/share/sounds/sf2/FluidR3_GM.sf2 \
+          &>/tmp/fluidsynth.out &
+
+      # Give it some time to come up.
+      sleep 2
+    
+    fi
+
+    if pgrep -l "jackd$"
+    then
+      echo "JACK started successfully."
+    else
+      # This is what usually happens, but jackd does come up.
+      # Why doesn't pgrep see it?
+      echo "JACK did NOT start successfully."
+    fi
+    if pgrep -l fluidsynth
+    then
+      echo "fluidsynth started successfully."
+    else
+      echo "fluidsynth did NOT started successfully."
+    fi
+
+    ;;
+
+  stop )
+
+    echo "Stopping audio servers..."
+
+    killall fluidsynth
+    killall jackd
+
+    sleep 2
+
+    if pgrep -l fluidsynth
+    then
+      echo "Could not stop fluidsynth.  Using SIGKILL..."
+      killall -9 fluidsynth
+      sleep 1
+    fi
+    if pgrep -l "jackd$"
+    then
+      echo "Could not stop JACK.  Using SIGKILL..."
+      killall -9 jackd
+      sleep 1
+    fi
+
+    pgrep -l "fluidsynth|jackd$"
+
+    echo "Starting pulseaudio..."
+
+    # Bring back PulseAudio.
+    pastart
+
+    ;;
+
+  pakill )
+
+    pakill
+
+    ;;
+
+  pastart )
+
+    pastart
+
+    ;;
+
+  * )
+    echo "Please specify start, stop, status, pakill, or pastart."
+    ;;
+esac
+
